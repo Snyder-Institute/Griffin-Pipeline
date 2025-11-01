@@ -6,7 +6,7 @@ This repository provides a reproducible and modular pipeline for **Oxford Nanopo
 ---
 ## Rationale
 
-MinKNOW from Oxford Nanopore frequently crashes and does not provide the most up-to-date _Dorado_ basecaller. Therefore, establishing an external computational environment is recommended for scalability and reproducibility. The Dorado version reported in the Web summary is the _Dorado Basecall Server_ version, which is misleading. In addition, the latest _Dorado_ release (v1.X.X), following the major update, provides an expanded quality score range based on improved signal-to-sequence predictors.
+_MinKNOW_ from Oxford Nanopore frequently crashes and does not provide the most up-to-date _Dorado_ basecaller. Therefore, establishing an external computational environment is recommended for scalability and reproducibility. The _Dorado_ version reported in the Web summary is the _Dorado Basecall Server_ version, which is misleading. In addition, the latest _Dorado_ release (v1.X.X), following the major update, provides an expanded quality score range based on improved signal-to-sequence predictors.
 
 ## Preprocessing
 
