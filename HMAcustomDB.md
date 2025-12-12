@@ -71,7 +71,7 @@ Install or load the following tools before execution:
 ### Pipeline steps
 #### Step 01. Assembly with metaFlye
 ```bash
-flye --nano-hq $FASTQ_FOLDER/F0.fastq.gz --out-dir $ASSEMBLY_FOLDER/F0 --meta --threads 64
+flye --nano-hq $FASTQ_FOLDER/F0.fastq.gz --out-dir $ASSEMBLY_FOLDER/F0 --meta
 ```
 
 #### Step 02. Polishing with Medaka
@@ -87,7 +87,7 @@ medaka_consensus -i $FASTQ_FOLDER/F0.fastq.gz -d $ASSEMBLY_FOLDER/F0/assembly.fa
 ### Step 03. Binning with SemiBin2
 
 ```bash
-SemiBin2 single_easy_bin -i $MEDAKA_FOLDER/F0/consensus.fasta -b $MEDAKA_FOLDER/F0/calls_to_draft.bam -o $BIN_FOLDER/F0 --environment human_gut -t 2 --sequencing-type long_read
+SemiBin2 single_easy_bin -i $MEDAKA_FOLDER/F0/consensus.fasta -b $MEDAKA_FOLDER/F0/calls_to_draft.bam -o $BIN_FOLDER/F0 --environment human_gut --sequencing-type long_read
 ```
 
 ### Step 04. Quality assessment with CheckM2
