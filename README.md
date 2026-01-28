@@ -11,6 +11,9 @@ The goal is to promote **research reproducibility and reproductivity** by docume
  * Each module contains a detailed README file. Click on the README for more information.
 
 ### 1. Preprocessing
+
+This module prepares raw Oxford Nanopore sequencing data for downstream analyses by converting signal-level data into high-quality, sample-resolved reads. It emphasizes rigorous quality control and standardized reporting to ensure data integrity and reproducibility.
+
   * [README](./Preprocessing.md)
   * The preprocessing module includes the following core components:
     1. **Basecalling and demultiplexing**: Converts raw electrical signals into nucleotide sequences and assigns reads to their corresponding samples.
@@ -19,6 +22,9 @@ The goal is to promote **research reproducibility and reproductivity** by docume
     4. **Quality reporting**: Generates an integrated QC report to facilitate data assessment and visualization.
         
 ### 2. Custom Database Generation
+
+This module provides a comprehensive workflow for constructing a custom reference database based on metagenome-assembled genomes (MAGs) generated from long-read sequencing data. The resulting database is optimized for taxonomic classification of Oxford Nanopore reads.
+
   * [README](./HMAcustomDB.md)
   * This module provides a complete workflow for constructing a custom reference database using metagenome-assembled genomes (MAGs). The workflow includes:
     1. **Assembly**: Generates contigs from long-read sequencing data.
@@ -30,7 +36,15 @@ The goal is to promote **research reproducibility and reproductivity** by docume
     7. **Database construction**: Builds a custom reference database using the validated and taxonomically annotated MAGs.
 
 ### 3. Taxonomic Classification
-_coming soon_
+
+This module performs read-level taxonomic assignment and abundance profiling using a custom reference database derived from curated MAGs. The workflow emphasizes stringent quality filtering and confidence-based classification to ensure accurate downstream interpretation.
+
+  * [README](./TaxAnnotation.md)
+  * The module includes the following core components:
+    1. **Preprocessing**: Removes ultra-long reads (>100,000 bp) and trims long reads (>15,000 bp)
+    2. **Taxonomic classification**: Assigns reads to taxonomic lineages using Kraken2 with a custom reference database
+    3. **Confidence-based read filtering**: Removes low-confidence classifications based on assigned _k_-mer proportions
+    4. **Quantification and abundance estimation**: Calculates taxon-level coverage and relative abundance
 
 ---
 
