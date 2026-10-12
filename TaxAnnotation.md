@@ -12,19 +12,19 @@ This module ensures robust and reproducible estimation of microbial composition 
 
 ## Workflows
 
-1. **Read preprocessing**: Remove low-quality and ultra-long reads
+1. **Input**: Filtered, host-free reads from the [Preprocessing](./Preprocessing.md) module (Steps 09–10)
 2. **Taxonomic classification**: Assign reads using Kraken2 with a custom database
 3. **Confidence filtering**: Retain only high-confidence read assignments
-4. **Quantification**: Estimate taxon-level coverage and relative abundance
+4. **Quantification**: Estimate species-level relative abundance with **BASEN v1.0.0**
 
 ### Environment setup
 Set the following environment variables to define input data, outputs, and database locations.
 
 ```bash
 # Define base folders
-export FASTQ_FOLDER=/path/to/fastq
-export FILTERED_FOLDER=/path/to/filtered_reads
+export HOSTFREE_FOLDER=/path/to/hostfree        # Filtered, host-free reads (Preprocessing Step 10)
 export CLASSIFICATION_FOLDER=/path/to/kraken2
+export FILTERED_KRAKEN_FOLDER=/path/to/kraken2_filtered
 export CUSTOMDB_FOLDER=/path/to/custom_db
 export PROFILE_FOLDER=/path/to/basen
 ```
@@ -33,18 +33,21 @@ export PROFILE_FOLDER=/path/to/basen
 
 Install or load the following tools prior to execution:
 
-| Tool | Purpose | Reference |
-|------|----------|------------|
-| [cutadapt](https://cutadapt.readthedocs.io/) | Trimming reads to a specified length | Martin |
-| [Kraken2](https://github.com/DerrickWood/kraken2) | High-throughput taxonomic classification of sequencing reads | Wood et al. |
-| [basen](https://github.com/Snyder-Institute/basen) | Base-level Abundance estimation with Species-assigned Evidence | _Not published_ |
+| Tool | Version | Purpose | Reference |
+|------|---------|----------|------------|
+| [Kraken2](https://github.com/DerrickWood/kraken2) | 2.1.6 | High-throughput taxonomic classification of sequencing reads | Wood et al. |
+| [BASEN](https://github.com/Snyder-Institute/BASEN) | **v1.0.0** | Base-level Abundance estimation with Species-assigned Evidence using Nanopore | _Not published_ |
+
+> **BASEN version.** All commands and results here use **BASEN v1.0.0** (GitHub commit `fad69ed`), in which the effective genome length is Gₛ = L − k + 1 (L = genome length in bp, k = 35). Check the installed version before running: `Rscript -e 'packageVersion("basen")'` should return `1.0.0`.
+
+Kraken2 and BASEN have no random-seed option; Kraken2 classification is deterministic.
 
 ### Example directory structure
 ```bash
-├── fastq/                  # Input FASTQ files
-├── filtered_reads/         # Quality- and length-filtered reads
-├── kraken2/                # Kraken2 classification outputs
-├── custom_db/              # Custom Kraken2 database
+├── hostfree/               # Filtered, host-free reads (input)
+├── kraken2/                # Kraken2 outputs: <sample>.kraken, <sample>.report
+├── kraken2_filtered/       # Read-level k-mer profiles, excluded read IDs, filtered .kraken files
+├── custom_db/              # Custom Kraken2 database and genome_stats.txt
 └── basen/                  # Relative abundance profiles
 ```
 
@@ -53,32 +56,20 @@ Install or load the following tools prior to execution:
 ![RelativeAbundance](./.github/profiles.png)
 
 ### Pipeline steps
-#### Step 01. Read preprocessing and filtering
-The selection of filtering thresholds is inherently arbitrary and can substantially influence downstream analyses. Therefore, we recommend that users justify cutoff values based on empirical evidence derived from their own data.
-
-To inform our filtering strategy, we evaluated per-base read quality across read-length bins defined as follows: 1–999 bp, 1,000–9,999 bp, 10,000–99,999 bp (long reads), and ≥100,000 bp (ultra-long reads). This analysis revealed two notable patterns: (1) ultra-long reads exhibited a pronounced decline in base quality after the first 5–10 bases, and (2) long reads showed a marked decrease in base quality beyond approximately 15,000 bp. Based on these observations, we chose to discard ultra-long reads entirely and to trim long reads to a maximum length of 15,000 bp.
-
-With respect to read quality filtering, Dorado discards reads with a mean Phred quality score below 20. Given that our length-based filtering and trimming strategy substantially improved overall read quality, we did not apply additional quality-based filtering steps.
-
-The code below implements the removal of ultra-long reads and the trimming of long reads according to the criteria described above.
-
-```bash
-cutadapt -l 14999 -o $FILTERED_FOLDER/F0_10000-15000.fastq.gz $FASTQ_FOLDER/F0_10000-99999.fastq.gz
-rm $FASTQ_FOLDER/F0_gtet100000.fastq.gz # gtet, greater than or equal to
-cat $FASTQ_FOLDER/F0_1-999.fastq.gz $FASTQ_FOLDER/F0_1000-9999.fastq.gz $FILTERED_FOLDER/F0_10000-15000.fastq.gz > $FILTERED_FOLDER/F0.fastq.gz
-```
+#### Step 01. Input reads
+Reads are filtered by length and host reads are removed in the [Preprocessing](./Preprocessing.md) module (Steps 09–10). Classifying reads that still contain host sequences inflates the unclassified fraction and lets host reads compete for _k_-mer assignments.
 
 #### Step 02. Taxonomic classification with Kraken2
 
-Filtered reads are classified against the custom Kraken2 database generated from donor-derived MAGs.
+Host-free reads are classified against the custom Kraken2 database generated from donor-derived MAGs (see [HMAcustomDB](./HMAcustomDB.md)).
 
 ```bash
 k2 classify \
-  --db $CUSTOMDB_FOLDER \
+  --db $CUSTOMDB_FOLDER/myDB \
   --threads 16 \
   --report $CLASSIFICATION_FOLDER/F0.report \
   --output $CLASSIFICATION_FOLDER/F0.kraken \
-  $FILTERED_FOLDER/F0.fastq.gz
+  $HOSTFREE_FOLDER/F0.fastq.gz
 ```
 
 #### Step 03. Confidence-based read filtering
@@ -87,12 +78,19 @@ We evaluated taxonomic classification accuracy using a defined positive control 
 
 This benchmarking revealed two key patterns. First, Kraken2 produced more reliable taxonomic assignments than Minimap2 when validated against BLAST results. This discrepancy is likely attributable to Minimap2’s reliance on minimizers as alignment anchors; loss of these anchors can disrupt chaining and result in missed alignments, particularly in repetitive genomic regions. Second, we conducted _k_-mer–level profiling using Kraken2’s default _k_ value (_k_ = 35) and observed that the number of _k_-mers assigned to decoy genomes increased significantly when the proportion of unclassified reads was high. This suggests that unclassified reads may compete with dominant species for _k_-mer assignments.
 
-To quantify this effect, we applied the Shannon diversity index at the read level, treating each read as a discrete distribution of _k_-mers across assignment categories (i.e., assigned to a specific reference genome versus unassigned). This formulation enables direct comparison of the relative abundance of assigned and unassigned _k_-mers within individual reads. We finally excluded reads that met the following two criteria: (i) a Shannon diversity index >1 for donor samples and >0.75 for mouse samples; and (ii) an unassigned _k_-mer proportion greater than 0.75. The code below demonstrates how to compute the Shannon diversity index and the proporiton of unassigned _k_-mers.
+To quantify this effect, we applied the Shannon diversity index at the read level, treating each read as a discrete distribution of _k_-mers across assignment categories (i.e., assigned to a specific reference genome versus unassigned). This formulation enables direct comparison of the relative abundance of assigned and unassigned _k_-mers within individual reads.
+
+A classified read is excluded if **either** of the following holds:
+  1. more than 75% of its _k_-mers are unassigned (unassigned proportion > 0.75); **or**
+  2. its Shannon diversity index exceeds 1.0 in high-depth donor samples, or 0.75 in mouse samples, donor replicates and controls.
+
+Unclassified reads are removed as well. The code below computes the read-level _k_-mer profile and the list of reads to exclude.
 
 ```R
 # The following section provides an R script implementing this procedure
-library(basen) # https://github.com/Snyder-Institute/basen
+library(basen) # BASEN v1.0.0, https://github.com/Snyder-Institute/BASEN
 library(dplyr)
+stopifnot(packageVersion("basen") == "1.0.0")
 
 shannon_diversity <- function(x) {
         x <- x[x > 0 & !is.na(x)]
@@ -120,36 +118,43 @@ kmer_profile <- buff %>% dplyr::mutate(
         unassigned_perc = unassigned_kmers / total_kmers
 )
 
-reads2exclude <- kmer_profile$read_id[intersect(which(kmer_profile$kmers_diversity > 1), 
-        which(kmer_profile$unassigned_perc > 0.75))]
+max_shannon <- 1.0 # high-depth donor sample; use 0.75 for mouse samples, donor replicates and controls
+reads2exclude <- kmer_profile$read_id[kmer_profile$unassigned_perc > 0.75 | kmer_profile$kmers_diversity > max_shannon]
 
-write.table(reads2exclude, "/path/to/kraken2/F0_read2exclude.txt", row.names=FALSE, col.names=FALSE, quote=FALSE)
+write.table(reads2exclude, "/path/to/kraken2_filtered/F0_read2exclude.txt", row.names=FALSE, col.names=FALSE, quote=FALSE)
 ```
+
+The excluded and unclassified reads are then removed from the `.kraken` file. The output is written to a separate folder: redirecting into the input file would empty it before it is read.
 
 ```bash
 kraken_file="$CLASSIFICATION_FOLDER/F0.kraken"
-exclude_file="$CLASSIFICATION_FOLDER/F0_read2exclude.txt"
+exclude_file="$FILTERED_KRAKEN_FOLDER/F0_read2exclude.txt"
 
 awk '
   NR==FNR { ids[$1]=1; next }
   ($1 != "U" && !($2 in ids)) { print }
-' "${exclude_file}" "${kraken_file}" > "${kraken_file}"
+' "${exclude_file}" "${kraken_file}" > "$FILTERED_KRAKEN_FOLDER/F0.kraken"
 ```
 
-#### Step 04. Quantification and abundance estimation
+#### Step 04. Quantification and abundance estimation with BASEN v1.0.0
 Bracken is based on a Bayesian framework and requires a fixed read length as a prior, which makes it suboptimal for long-read sequencing data. To address this limitation, we developed a _k_-mer–based approach for estimating relative abundance, termed BASEN (Base-level Abundance estimation with Species-assigned Evidence using Nanopore).
 
-BASEN estimates species-level relative abundance from long-read metagenomic data by restricting classification to species-level assignments and counting only species-assigned _k_-mers as base-level evidence (leveraging the known length of k). These counts are then normalized by the corresponding reference genome lengths (which are known a priori), yielding relative abundance estimates across species.
+BASEN estimates species-level relative abundance from long-read metagenomic data by restricting classification to species-level assignments and counting only species-assigned _k_-mers as base-level evidence. For each species s, the evidence Bₛ (species-assigned _k_-mers summed over the reads that passed Step 03) is divided by the effective genome length Gₛ = L − k + 1, giving a coverage proxy Cₛ = Bₛ / Gₛ. Within each sample, the coverage proxies are scaled to sum to 1: RAₛ = Cₛ / ΣᵢCᵢ.
 
-The code below demonstrates how to compute relative abundance using BASEN. It requires two input files: (i) `.kraken` files containing per-read taxonomic assignments and _k_-mer–level evidence, and (ii) `.report` files summarizing taxonomic assignments across ranks.
+The code below computes relative abundance with BASEN v1.0.0. It requires three inputs: (i) the `.report` files from Step 02, (ii) the filtered `.kraken` files from Step 03, and (iii) `genome_stats.txt` from the database build. The `.report` and `.kraken` files must be named `<sample>.report` and `<sample>.kraken`.
 
 ```R
 # The following section provides an R script implementing this procedure
-library(basen)
-report_dir <- "/path/to/kraken2"
-# https://github.com/Snyder-Institute/basen/blob/main/inst/scripts/get_genome_length_from_fasta.sh
-genome_stats_file <- "/path/to/custom_db/genome_stats.txt" 
-resultsL <- kraken_relative_abundance(report_dir = report_dir, genome_stats_file = genome_stats_file)
+library(basen) # BASEN v1.0.0
+stopifnot(packageVersion("basen") == "1.0.0")
+resultsL <- kraken_relative_abundance(
+        report_dir = "/path/to/kraken2",                        # <sample>.report (Step 02)
+        kraken_dir = "/path/to/kraken2_filtered",               # <sample>.kraken (Step 03)
+        k_mer_length = 35,
+        genome_stats_file = "/path/to/custom_db/genome_stats.txt",
+        sample_ids = "F0",
+        output_folder = "/path/to/basen"
+)
 ```
 
 ---

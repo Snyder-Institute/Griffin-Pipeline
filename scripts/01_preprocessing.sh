@@ -20,6 +20,9 @@ SUMMARY_FOLDER="~/projects/Benchmarking/Summary"
 STAT_FOLDER="~/projects/Benchmarking/Stats/$PLATE"
 FASTQC_FOLDER="~/projects/Benchmarking/FASTQC/$PLATE"
 MULTIQC_FOLDER="~/projects/Benchmarking/MULTIQC/$PLATE"
+FILTERED_FOLDER="~/projects/Benchmarking/FASTQ/FILTERED"
+HOSTFREE_FOLDER="~/projects/Benchmarking/FASTQ/HOSTFREE"
+HOST_REF="~/REFERENCES/minimap2"
 
 #### #### #### #### #### #### #### #### #### #### #### #### 
 # [Step 01] Basecalling with Dorado requires parallelization to process multiple POD5 files efficiently
@@ -55,6 +58,18 @@ fastqc -o $FASTQC_FOLDER/barcode96 --extract -f fastq $FASTQ_FOLDER/barcode96.fa
 # [Step 08] Aggregate all FastQC reports using MultiQC
 mkdir -p $MULTIQC_FOLDER
 multiqc -z -o $MULTIQC_FOLDER $FASTQC_FOLDER
+
+# [Step 09] Discard ultra-long reads (>=100,000 bp) and trim long reads to 15,000 bp - parallelization
+## Input: FASTQ files split into length bins (1-999, 1000-9999, 10000-99999, >=100000 bp)
+mkdir -p $FILTERED_FOLDER
+cutadapt -l 14999 -o $FILTERED_FOLDER/barcode96_10000-15000.fastq.gz $FASTQ_FOLDER/barcode96_10000-99999.fastq.gz
+cat $FASTQ_FOLDER/barcode96_1-999.fastq.gz $FASTQ_FOLDER/barcode96_1000-9999.fastq.gz $FILTERED_FOLDER/barcode96_10000-15000.fastq.gz > $FILTERED_FOLDER/barcode96.fastq.gz
+
+# [Step 10] Remove host reads (mouse GRCm39 + human GRCh38) - parallelization
+## minimap2 -y and samtools fastq -T '*' keep the Dorado header tags, which Medaka needs downstream
+mkdir -p $HOSTFREE_FOLDER
+minimap2 -y -ax map-ont --secondary=no $HOST_REF/GRCm39_GRCh38.mmi $FILTERED_FOLDER/barcode96.fastq.gz | samtools view -b -o $HOSTFREE_FOLDER/barcode96.host.bam -
+samtools fastq -f 4 -T '*' $HOSTFREE_FOLDER/barcode96.host.bam | gzip > $HOSTFREE_FOLDER/barcode96.fastq.gz
 
 #### #### #### #### #### #### #### #### #### #### #### #### 
 # FIN

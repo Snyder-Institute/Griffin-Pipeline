@@ -18,8 +18,9 @@ This module prepares raw Oxford Nanopore sequencing data for downstream analyses
   * The preprocessing module includes the following core components:
     1. **Basecalling and demultiplexing**: Converts raw electrical signals into nucleotide sequences and assigns reads to their corresponding samples.
     2. **Quality control**: Assesses read quality, summarizes key metrics, and performs length- and quality-based filtering.
-    3. **Read filtering and trimming**: Removes ultra-long or low-quality reads and trims suboptimal regions to improve downstream analyses.
-    4. **Quality reporting**: Generates an integrated QC report to facilitate data assessment and visualization.
+    3. **Quality reporting**: Generates an integrated QC report to facilitate data assessment and visualization.
+    4. **Read filtering and trimming**: Removes ultra-long reads (>100,000 bp) and trims long reads to 15,000 bp.
+    5. **Host read removal**: Removes reads that align to the host (mouse) or human genome. The filtered, host-free reads are the input to both modules below.
         
 ### 2. Custom Database Generation
 
@@ -27,13 +28,14 @@ This module provides a comprehensive workflow for constructing a custom referenc
 
   * [README](./HMAcustomDB.md)
   * This module provides a complete workflow for constructing a custom reference database using metagenome-assembled genomes (MAGs). The workflow includes:
-    1. **Assembly**: Generates contigs from long-read sequencing data.
+    1. **Assembly**: Generates contigs from filtered, host-free long reads (five independent runs per sample).
     2. **Polishing**: Corrects INDELs and other sequencing errors in the draft assembly.
     3. **Binning**: Groups contigs into MAGs based on sequence composition and coverage patterns.
     4. **Quality assessment**: Evaluates MAG completeness and contamination to retain high-quality genomes.
-    5. **Taxonomic classification**: Assigns taxonomic identities to the curated MAGs.
-    6. **Genome retrieval**: Downloads or extracts genome sequences corresponding to the classified MAGs.
-    7. **Database construction**: Builds a custom reference database using the validated and taxonomically annotated MAGs.
+    5. **Pooling**: Keeps species recovered reproducibly across the independent runs.
+    6. **Taxonomic classification**: Assigns GTDB taxonomy to the pooled MAGs.
+    7. **Dereplication**: Collapses MAGs shared across samples into one MAG per species.
+    8. **Database construction**: Builds a custom Kraken2 database from the MAGs themselves, with a GTDB-based taxonomy.
 
 ### 3. Taxonomic Classification
 
@@ -41,10 +43,10 @@ This module performs read-level taxonomic assignment and abundance profiling usi
 
   * [README](./TaxAnnotation.md)
   * The module includes the following core components:
-    1. **Preprocessing**: Removes ultra-long reads (>100,000 bp) and trims long reads (>15,000 bp)
+    1. **Input**: Filtered, host-free reads from the Preprocessing module
     2. **Taxonomic classification**: Assigns reads to taxonomic lineages using Kraken2 with a custom reference database
-    3. **Confidence-based read filtering**: Removes low-confidence classifications based on assigned _k_-mer proportions
-    4. **Quantification and abundance estimation**: Calculates taxon-level coverage and relative abundance
+    3. **Confidence-based read filtering**: Removes low-confidence classifications based on unassigned _k_-mer proportions and read-level _k_-mer diversity
+    4. **Quantification and abundance estimation**: Calculates species-level relative abundance with **BASEN v1.0.0** ([Snyder-Institute/BASEN](https://github.com/Snyder-Institute/BASEN))
 
 ---
 
