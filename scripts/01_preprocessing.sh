@@ -1,5 +1,6 @@
+#!/bin/bash
 #### #### #### #### #### #### #### #### #### #### #### #### 
-# ONT Data Preprocesing Pipeline
+# ONT Data Preprocessing Pipeline
 # by Heewon Seo <Heewon.Seo@ucalgary.ca>
 # on October 28, 2025
 #### #### #### #### #### #### #### #### #### #### #### #### 
@@ -11,18 +12,16 @@
 PLATE="Plate10"
 KIT_INFO="SQK-NBD-96"
 
-DORADO="~/tools/dorado-1.1.1-linux-x64/bin/"
-POD5_FOLDER="~/RAWDATA/Benchmarking/POD5/$PLATE"
-BAM_FOLDER="~/projects/Benchmarking/BAM/$PLATE"
-DEMUX_FOLDER="~/projects/Benchmarking/DEMUX/$PLATE"
-FASTQ_FOLDER="~/projects/Benchmarking/FASTQ/$PLATE"
-SUMMARY_FOLDER="~/projects/Benchmarking/Summary"
-STAT_FOLDER="~/projects/Benchmarking/Stats/$PLATE"
-FASTQC_FOLDER="~/projects/Benchmarking/FASTQC/$PLATE"
-MULTIQC_FOLDER="~/projects/Benchmarking/MULTIQC/$PLATE"
-FILTERED_FOLDER="~/projects/Benchmarking/FASTQ/FILTERED"
-HOSTFREE_FOLDER="~/projects/Benchmarking/FASTQ/HOSTFREE"
-HOST_REF="~/REFERENCES/minimap2"
+DORADO="$HOME/tools/dorado-1.1.1-linux-x64/bin/"
+POD5_FOLDER="$HOME/RAWDATA/Benchmarking/POD5/$PLATE"
+BAM_FOLDER="$HOME/projects/Benchmarking/BAM/$PLATE"
+DEMUX_FOLDER="$HOME/projects/Benchmarking/DEMUX/$PLATE"
+FASTQ_FOLDER="$HOME/projects/Benchmarking/FASTQ/$PLATE"
+SUMMARY_FOLDER="$HOME/projects/Benchmarking/Summary"
+STAT_FOLDER="$HOME/projects/Benchmarking/Stats/$PLATE"
+FASTQC_FOLDER="$HOME/projects/Benchmarking/FASTQC/$PLATE"
+MULTIQC_FOLDER="$HOME/projects/Benchmarking/MULTIQC/$PLATE"
+FILTERED_FOLDER="$HOME/projects/Benchmarking/FASTQ/FILTERED"
 
 #### #### #### #### #### #### #### #### #### #### #### #### 
 # [Step 01] Basecalling with Dorado requires parallelization to process multiple POD5 files efficiently
@@ -59,17 +58,11 @@ fastqc -o $FASTQC_FOLDER/barcode96 --extract -f fastq $FASTQ_FOLDER/barcode96.fa
 mkdir -p $MULTIQC_FOLDER
 multiqc -z -o $MULTIQC_FOLDER $FASTQC_FOLDER
 
-# [Step 09] Discard ultra-long reads (>=100,000 bp) and trim long reads to 15,000 bp - parallelization
+# [Step 09] Discard ultra-long reads (>=100,000 bp) and trim long reads to 14,999 bp - parallelization
 ## Input: FASTQ files split into length bins (1-999, 1000-9999, 10000-99999, >=100000 bp)
 mkdir -p $FILTERED_FOLDER
 cutadapt -l 14999 -o $FILTERED_FOLDER/barcode96_10000-15000.fastq.gz $FASTQ_FOLDER/barcode96_10000-99999.fastq.gz
 cat $FASTQ_FOLDER/barcode96_1-999.fastq.gz $FASTQ_FOLDER/barcode96_1000-9999.fastq.gz $FILTERED_FOLDER/barcode96_10000-15000.fastq.gz > $FILTERED_FOLDER/barcode96.fastq.gz
-
-# [Step 10] Remove host reads (mouse GRCm39 + human GRCh38) - parallelization
-## minimap2 -y and samtools fastq -T '*' keep the Dorado header tags, which Medaka needs downstream
-mkdir -p $HOSTFREE_FOLDER
-minimap2 -y -ax map-ont --secondary=no $HOST_REF/GRCm39_GRCh38.mmi $FILTERED_FOLDER/barcode96.fastq.gz | samtools view -b -o $HOSTFREE_FOLDER/barcode96.host.bam -
-samtools fastq -f 4 -T '*' $HOSTFREE_FOLDER/barcode96.host.bam | gzip > $HOSTFREE_FOLDER/barcode96.fastq.gz
 
 #### #### #### #### #### #### #### #### #### #### #### #### 
 # FIN
