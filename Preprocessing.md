@@ -140,7 +140,7 @@ The selection of filtering thresholds is inherently arbitrary and can substantia
 
 To inform our filtering strategy, we evaluated per-base read quality across read-length bins defined as follows: 1–999 bp, 1,000–9,999 bp, 10,000–99,999 bp (long reads), and ≥100,000 bp (ultra-long reads). This analysis revealed two notable patterns: (1) ultra-long reads exhibited a pronounced decline in base quality after the first 5–10 bases, and (2) long reads showed a marked decrease in base quality beyond approximately 15,000 bp. Based on these observations, we chose to discard ultra-long reads entirely and to trim long reads to 14,999 bp.
 
-With respect to read quality filtering, Dorado discards reads with a mean Phred quality score below 20. Given that our length-based filtering and trimming strategy substantially improved overall read quality, we did not apply additional quality-based filtering steps.
+With respect to read quality filtering, Dorado (v1.1.1) applies no quality filter by default (`--min-qscore`, default 0), and the basecalling command above does not set one. Given that our length-based filtering and trimming strategy substantially improved overall read quality, we did not apply additional quality-based filtering steps.
 
 The code below removes ultra-long reads and trims long reads according to the criteria described above, starting from FASTQ files split into the length bins above.
 
